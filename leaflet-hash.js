@@ -1,5 +1,4 @@
-var L = require('leaflet');
-export default function leafletHash(window) {
+export default function leafletHash() {
 
 	L.Hash = function(map) {
 
@@ -122,4 +121,4 @@ export default function leafletHash(window) {
 	L.Map.prototype.removeHash = function() {
 		this._hash.removeFrom();
 	};
-}(window);
+};
