@@ -37,6 +37,8 @@ var map = (function () {
     var scene = layer.scene;
     window.scene = scene;
 
+    var hash = new L.Hash(map);
+
     // setView expects format ([lat, long], zoom)
     map.setView(map_start_location.slice(0, 3), map_start_location[2]);
 
@@ -47,7 +49,6 @@ var map = (function () {
         layer.on('init', function() {
         });
         layer.addTo(map);
-        var hash = new L.Hash(map);
     });
 
     return map;
