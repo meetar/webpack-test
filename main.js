@@ -1,7 +1,6 @@
 /*jslint browser: true*/
 /*global Tangram, gui */
-// import leafletHash from './leaflet-hash.js';
-
+import leafletHash from './leaflet-hash.js';
 var L = require('leaflet');
 var Tangram = require('tangram');
 L.Icon.Default.imagePath = 'node_modules/leaflet/dist/images/';
@@ -40,8 +39,6 @@ var map = (function () {
 
     // setView expects format ([lat, long], zoom)
     map.setView(map_start_location.slice(0, 3), map_start_location[2]);
-    // leafletHash(window);
-    // var hash = new L.Hash(map);
 
     /***** Render loop *****/
 
@@ -50,6 +47,7 @@ var map = (function () {
         layer.on('init', function() {
         });
         layer.addTo(map);
+        var hash = new L.Hash(map);
     });
 
     return map;
