@@ -11,30 +11,19 @@ http://mapzen.com/tangram
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Tangram: WebGL for OpenStreetMap</title>
     <link rel="stylesheet" href="demos/css/main.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.1/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.2.0/leaflet.css" />
   </head>
 
   <body>
     <div id="map"></div>
 
-    <!-- Use leaflet 0.7.x (continuous zoom will be disabled) -->
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/leaflet.js"></script> -->
-
-    <!-- Use leaflet 1.x (continuous zoom will be enabled) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.0.1/leaflet.js"></script>
-
-    <!-- A lightweight graphical user interface for changing variables in JavaScript.  -->
-    <script src="demos/lib/dat.gui.min.js"></script>
-
-    <!-- rStats provides WebGL performance profiling-->
-    <script src="demos/lib/rStats.js"></script>
+    <!-- 3rd party libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.2.0/leaflet.js"></script>
+    <script src="demos/lib/dat.gui.min.js"></script> <!-- lightweight GUI lib -->
+    <script src="demos/lib/rStats.js"></script> <!-- rStats provides WebGL performance profiling-->
     <script src="demos/lib/rStats.extras.js"></script>
-
-    <!-- FileSaver.js implements the HTML5 W3C saveAs(), used in the demo to save screenshots -->
-    <script src="demos/lib/FileSaver.js"></script>
-
-    <!-- Keymaster handles keyboard input -->
-    <script src="demos/lib/keymaster.js"></script>
+    <script src="demos/lib/FileSaver.js"></script> <!-- used in the demo to save screenshots -->
+    <script src="demos/lib/keymaster.js"></script> <!-- Keymaster handles keyboard input -->
 
     <!-- Main tangram library -->
     <script src="dist/tangram.debug.js"></script>
@@ -42,8 +31,16 @@ http://mapzen.com/tangram
     <!-- Tangram demo code -->
     <script src="demos/main.js"></script>
 
-    <!-- Mapzen map UI -->
+    <!-- Tangram demo extras -->
+    <script src="demos/app/url.js"></script> <!-- URL parsing -->
+    <script src="demos/app/key.js"></script> <!-- demo key setup -->
+    <script src="demos/app/gui.js"></script> <!-- UI for configuring map -->
+    <!-- <script src="demos/app/rStats.js"></script> --> <!-- WebGL stats for debugging -->
+
+    <!-- Mapzen extras (search/share UI) -->
     <script src='//mapzen.com/common/ui/mapzen-ui.min.js'></script>
+
+    <!-- Mapzen analytics -->
     <script>
       MPZN.bug({
         name: 'Tangram',

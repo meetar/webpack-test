@@ -3,7 +3,13 @@ import Geo from '../geo';
 
 import parseCSSColor from 'csscolorparser';
 
-export var StyleParser = {};
+export const StyleParser = {};
+
+// Helpers for string converstion / NaN handling
+const clampPositive = v => Math.max(v, 0);
+const noNaN = v => isNaN(v) ? 0 : v;
+const parseNumber = v => Array.isArray(v) ? v.map(parseFloat).map(noNaN) : noNaN(parseFloat(v));
+const parsePositiveNumber = v => Array.isArray(v) ? v.map(parseNumber).map(clampPositive) : clampPositive(parseNumber(v));
 
 // Wraps style functions and provides a scope of commonly accessible data:
 // - feature: the 'properties' of the feature, e.g. accessed as 'feature.name'
@@ -92,29 +98,40 @@ StyleParser.getFeatureParseContext = function (feature, tile, global) {
 // Build a style param cache object
 // `value` is raw value, cache methods will add other properties as needed
 // `transform` is optional transform function to run on values (except function values)
+const CACHE_TYPE = {
+    STATIC: 0,
+    DYNAMIC: 1,
+    ZOOM: 2
+};
+StyleParser.CACHE_TYPE = CACHE_TYPE;
+
 StyleParser.createPropertyCache = function (obj, transform = null) {
     if (obj == null) {
         return;
     }
 
     if (obj.value) {
-        return { value: obj.value, zoom: (obj.zoom ? {} : null) }; // clone existing cache object
+        return { value: obj.value, zoom: (obj.zoom ? {} : null), type: obj.type }; // clone existing cache object
     }
 
-    let c = { value: obj };
+    let c = { value: obj, type: CACHE_TYPE.STATIC };
 
     // does value contain zoom stops to be interpolated?
     if (Array.isArray(c.value) && Array.isArray(c.value[0])) {
         c.zoom = {}; // will hold values interpolated by zoom
+        c.type = CACHE_TYPE.ZOOM;
+    }
+    else if (typeof c.value === 'function') {
+        c.type = CACHE_TYPE.DYNAMIC;
     }
 
     // apply optional transform function
     if (typeof transform === 'function') {
         if (c.zoom) { // apply to each zoom stop value
-            c.value = c.value.map(v => [v[0], transform(v[1])]);
+            c.value = c.value.map((v, i) => [v[0], transform(v[1], i)]);
         }
         else if (typeof c.value !== 'function') { // don't transform functions
-            c.value = transform(c.value); // single value
+            c.value = transform(c.value, 0); // single value
         }
     }
 
@@ -134,6 +151,97 @@ StyleParser.createColorPropertyCache = function (obj) {
 
         return v;
     });
+};
+
+// Caching for point sizes, which include optional %-based or aspect-ratio-constrained scaling from sprite size
+// Returns a cache object if successful, or throws error message
+const isPercent = v => typeof v === 'string' && v[v.length-1] === '%'; // size computed by %
+const isRatio = v => v === 'auto'; // size derived from aspect ratio of one dimension
+const isComputed = v => isPercent(v) || isRatio(v);
+const dualRatioError = `'size' can specify either width or height as derived from aspect ratio, but not both`;
+StyleParser.createPointSizePropertyCache = function (obj) {
+    // mimics the structure of the size value (at each zoom stop if applicable),
+    // stores flags indicating if each element is a %-based size or not, or derived from aspect
+    let has_pct = null;
+    let has_ratio = null;
+    if (isPercent(obj)) { // 1D size
+        has_pct = [true];
+    }
+    else if (Array.isArray(obj)) {
+        // track which fields are % vals
+        if (Array.isArray(obj[0])) { // zoom stops
+            // could be a 1D value (that could be a %), or a 2D value (either width or height or both could be a %)
+            if (obj.some(v => Array.isArray(v[1]) ? v[1].some(w => isComputed(w)) : isPercent(v[1]))) {
+                has_pct = obj.map(v => Array.isArray(v[1]) ? v[1].map(w => isPercent(w)) : isPercent(v[1]));
+                has_ratio = obj.map(v => Array.isArray(v[1]) && v[1].map(w => isRatio(w)));
+                if (has_ratio.some(v => Array.isArray(v) && v.every(c => c))) {
+                    throw dualRatioError; // invalid case where both dims are ratios
+                }
+            }
+        }
+        else if (obj.some(isComputed)) { // 2D size
+            has_pct = [obj.map(isPercent)];
+            has_ratio = [obj.map(isRatio)];
+            if (has_ratio[0].every(c => c)) {
+                throw dualRatioError; // invalid case where both dims are ratios
+            }
+        }
+    }
+
+    if (!has_pct) { // no percentage-based calculation, one cache for all sprites
+        obj = StyleParser.createPropertyCache(obj, parsePositiveNumber);
+    }
+    else { // per-sprite based evaluation
+        obj = { value: obj };
+        obj.has_pct = has_pct;
+        obj.has_ratio = has_ratio;
+        obj.sprites = {}; // cache by sprite
+    }
+
+    return obj;
+};
+
+StyleParser.evalCachedPointSizeProperty = function (val, sprite_info, context) {
+    // no percentage-based calculation, one cache for all sprites
+    if (!val.has_pct && !val.has_ratio) {
+        return StyleParser.evalCachedProperty(val, context);
+    }
+
+    // per-sprite based evaluation
+    if (!sprite_info) {
+        return; // trying to apply percentage or ratio sizing to a sprite
+    }
+
+    // cache sizes per sprite
+    if (!val.sprites[sprite_info.sprite]) {
+        val.sprites[sprite_info.sprite] = StyleParser.createPropertyCache(val.value, (v, i) => {
+            if (Array.isArray(v)) { // 2D size
+                // either width or height or both could be a %
+                v = v.
+                    map((c, j) => val.has_ratio[i][j] ? c : parsePositiveNumber(c)). // convert non-ratio values to px
+                    map((c, j) => val.has_pct[i][j] ? sprite_info.css_size[j] * c / 100 : c); // apply % scaling as needed
+
+                // either width or height could be a ratio
+                if (val.has_ratio[i][0]) {
+                    v[0] = v[1] * sprite_info.aspect;
+                }
+                else if (val.has_ratio[i][1]) {
+                    v[1] = v[0] / sprite_info.aspect;
+                }
+            }
+            else { // 1D size
+                v = parsePositiveNumber(v);
+                if (val.has_pct[i]) {
+                    v = sprite_info.css_size.map(c => c * v / 100); // set size as % of sprite
+                }
+                else {
+                    v = [v, v]; // expand 1D size to 2D
+                }
+            }
+            return v;
+        });
+    }
+    return StyleParser.evalCachedProperty(val.sprites[sprite_info.sprite], context);
 };
 
 // Interpolation and caching for a generic property (not a color or distance)
@@ -163,7 +271,6 @@ StyleParser.evalCachedProperty = function(val, context) {
         else if (Array.isArray(val.value) && Array.isArray(val.value[0])) {
             // Calculate value for current zoom
             val.zoom = val.zoom || {};
-            val.zoom = {};
             val.zoom[context.zoom] = Utils.interpolate(context.zoom, val.value);
             return val.zoom[context.zoom];
         }
